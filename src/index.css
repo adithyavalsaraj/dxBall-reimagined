@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -25,8 +25,29 @@ body {
 .bento-card {
   background: var(--card-bg);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
+  border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  padding: 12px;
+}
+
+@media (min-width: 640px) {
+  .bento-card {
+    border-radius: 24px;
+    padding: 24px;
+  }
+}
+
+.game-container {
+  box-shadow:
+    0 0 30px rgba(0, 210, 255, 0.15),
+    inset 0 0 20px rgba(0, 210, 255, 0.05);
+  transition: box-shadow 0.3s ease;
+}
+
+.game-container:hover {
+  box-shadow:
+    0 0 40px rgba(0, 210, 255, 0.2),
+    inset 0 0 30px rgba(0, 210, 255, 0.1);
 }
 
 .key-cap {
