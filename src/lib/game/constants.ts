@@ -24,9 +24,22 @@ export enum BrickType {
 export enum PowerUpType {
   EXTEND_PADDLE = 'EXTEND_PADDLE',
   EXTRA_BALL = 'EXTRA_BALL',
-  LASER = 'LASER', // Not implemented yet but placeholder
   SLOW_BALL = 'SLOW_BALL',
+  EXTRA_LIFE = 'EXTRA_LIFE',
+  FIRE_BALL = 'FIRE_BALL',
+  SHOOTER = 'SHOOTER',
 }
+
+export const POWERUP_DROP_SPEED = 3;
+export const POWERUP_RADIUS = 12;
+export const POWERUP_DURATION = 10000; // 10 seconds
+export const EXTENDED_PADDLE_WIDTH = 180;
+export const SHRUNK_BALL_SPEED_FACTOR = 0.7;
+
+export const BULLET_SPEED = 8;
+export const BULLET_COOLDOWN = 400; // ms
+export const BULLET_WIDTH = 4;
+export const BULLET_HEIGHT = 12;
 
 export const COLORS = {
   PADDLE: '#ffffff',

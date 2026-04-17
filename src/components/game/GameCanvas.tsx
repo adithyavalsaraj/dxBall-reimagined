@@ -12,6 +12,10 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   PADDLE_HEIGHT,
+  PowerUpType,
+  POWERUP_RADIUS,
+  BULLET_WIDTH,
+  BULLET_HEIGHT,
 } from "../../lib/game/constants";
 import { GameState } from "../../lib/game/engine";
 
@@ -42,12 +46,12 @@ export default function GameCanvas({
   useEffect(() => {
     // Check for brick hits to spawn particles
     if (gameState && gameState.bricks.length < prevBrickCountRef.current) {
-      // Find rough location (just helper, in a real engine the hit event would provide coordinates)
-      // For simplicity, we'll just spawn at ball position when brick count decreases
+      // Find rough location (just helper)
+      const firstBall = gameState.balls[0] || { x: 0, y: 0 };
       for (let i = 0; i < 15; i++) {
         particlesRef.current.push({
-          x: gameState.ball.x,
-          y: gameState.ball.y,
+          x: firstBall.x,
+          y: firstBall.y,
           vx: (Math.random() - 0.5) * 6,
           vy: (Math.random() - 0.5) * 6,
           life: 1.0,
@@ -56,7 +60,32 @@ export default function GameCanvas({
       }
     }
     prevBrickCountRef.current = gameState?.bricks.length || 0;
-  }, [gameState?.bricks.length, gameState?.ball.x, gameState?.ball.y]);
+  }, [gameState?.bricks.length, gameState?.balls]);
+
+  useEffect(() => {
+    const handlePointerLockChange = () => {
+      if (document.pointerLockElement !== canvasRef.current) {
+        // Pointer lock lost - pause the game
+        if (gameState && !gameState.isPaused && !gameState.isGameOver) {
+          onClick(); // Using onClick as toggle for now in App, but better to have explicit pause
+        }
+      }
+    };
+
+    document.addEventListener("pointerlockchange", handlePointerLockChange);
+    return () =>
+      document.removeEventListener("pointerlockchange", handlePointerLockChange);
+  }, [gameState, onClick]);
+
+  const handleCanvasClick = () => {
+    if (!gameState?.isPaused) return;
+
+    const canvas = canvasRef.current;
+    if (canvas && canvas.requestPointerLock) {
+      canvas.requestPointerLock();
+    }
+    onClick();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -115,21 +144,66 @@ export default function GameCanvas({
     );
     ctx.restore();
 
-    // Draw Ball
-    ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = COLORS.BALL;
-    ctx.fillStyle = COLORS.BALL;
-    ctx.beginPath();
-    ctx.arc(gameState.ball.x, gameState.ball.y, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
+    // Draw Balls
+    const isFireBallActive = !!gameState.activeEffects[PowerUpType.FIRE_BALL];
 
-    // Inner core
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(gameState.ball.x - 2, gameState.ball.y - 2, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    gameState.balls.forEach((ball) => {
+      ctx.save();
+      ctx.shadowBlur = isFireBallActive ? 25 : 12;
+      ctx.shadowColor = isFireBallActive ? "#ff4500" : COLORS.BALL;
+      ctx.fillStyle = isFireBallActive ? "#ff8c00" : COLORS.BALL;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner core
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(ball.x - 2, ball.y - 2, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Draw Bullets
+    gameState.bullets.forEach((bullet) => {
+      ctx.save();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "#ff0000";
+      ctx.fillStyle = "#ff3333";
+      ctx.fillRect(
+        bullet.x - BULLET_WIDTH / 2,
+        bullet.y,
+        BULLET_WIDTH,
+        BULLET_HEIGHT,
+      );
+      ctx.restore();
+    });
+
+    // Draw Falling Power-ups
+    gameState.fallingPowerUps.forEach((p) => {
+      ctx.save();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = COLORS.BRICKS.POWERUP;
+      ctx.fillStyle = COLORS.BRICKS.POWERUP;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, POWERUP_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Power-up identifier letter
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold 12px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      let label = "?";
+      if (p.type === PowerUpType.EXTEND_PADDLE) label = "E";
+      if (p.type === PowerUpType.EXTRA_BALL) label = "M"; // M for Multiball
+      if (p.type === PowerUpType.SLOW_BALL) label = "S";
+      if (p.type === PowerUpType.EXTRA_LIFE) label = "L";
+      if (p.type === PowerUpType.FIRE_BALL) label = "F";
+      if (p.type === PowerUpType.SHOOTER) label = "G"; // G for Gun
+      ctx.fillText(label, p.x, p.y);
+      ctx.restore();
+    });
 
     // Draw Particles
     particlesRef.current.forEach((p, i) => {
@@ -184,7 +258,7 @@ export default function GameCanvas({
         height={GAME_HEIGHT}
         onMouseMove={handlePointerMove}
         onTouchMove={handlePointerMove}
-        onClick={onClick}
+        onClick={handleCanvasClick}
         className="cursor-none touch-none block bg-black w-full h-full"
       />
     </div>

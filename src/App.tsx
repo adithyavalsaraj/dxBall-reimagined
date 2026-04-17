@@ -1,28 +1,52 @@
-import { useCallback, useEffect, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
-import { Zap } from 'lucide-react';
+import { useCallback, useEffect, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent, useRef } from 'react';
+import { Zap, Pause, Play, RotateCcw, LogOut } from 'lucide-react';
 import GameCanvas from './components/game/GameCanvas';
 import { useGameLoop } from './hooks/useGameLoop';
 import { GAME_WIDTH } from './lib/game/constants';
-
 import { soundService } from './lib/game/audio';
 
 export default function App() {
-  const { gameState, movePaddle, startGame, togglePause } = useGameLoop();
+  const { 
+    gameState, 
+    movePaddle, 
+    startGame, 
+    togglePause, 
+    shoot, 
+    resetLevel, 
+    quitGame 
+  } = useGameLoop();
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handlePointerMove = useCallback((e: ReactMouseEvent | ReactTouchEvent) => {
     soundService.init();
-    let clientX;
-    if ('touches' in e && (e as ReactTouchEvent).touches[0]) {
-      clientX = (e as ReactTouchEvent).touches[0].clientX;
+    
+    if (document.pointerLockElement) {
+      // Pointer lock active - use relative movement
+      const movementX = (e.nativeEvent as MouseEvent).movementX || 0;
+      if (gameState) {
+        movePaddle(gameState.paddle.x + movementX);
+      }
     } else {
-      clientX = (e as ReactMouseEvent).clientX;
+      // Standard movement for touch or non-locked mouse
+      let clientX;
+      if ('touches' in e && (e as ReactTouchEvent).touches[0]) {
+        clientX = (e as ReactTouchEvent).touches[0].clientX;
+      } else {
+        clientX = (e as ReactMouseEvent).clientX;
+      }
+
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = clientX - rect.left;
+      const scaledX = (x / rect.width) * GAME_WIDTH;
+      movePaddle(scaledX - (gameState?.paddle.width || 120) / 2);
     }
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = clientX - rect.left;
-    const scaledX = (x / rect.width) * GAME_WIDTH;
-    movePaddle(scaledX - (gameState?.paddle.width || 120) / 2);
-  }, [movePaddle, gameState?.paddle.width]);
+    // Also try to shoot if the game is active
+    if (gameState && !gameState.isPaused && !gameState.isGameOver) {
+      shoot();
+    }
+  }, [movePaddle, gameState, shoot]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,22 +57,33 @@ export default function App() {
         } else if (e.key === 'ArrowRight' || e.key === 'd') {
           movePaddle(gameState.paddle.x + step);
         } else if (e.key === ' ') {
-          if (gameState.isPaused || gameState.isGameOver) startGame();
-          else togglePause();
+          if (gameState.isPaused || gameState.isGameOver) {
+            startGame();
+            // Try to request pointer lock when starting via keyboard too
+            const canvas = document.querySelector('canvas');
+            canvas?.requestPointerLock();
+          } else {
+            shoot();
+          }
+        } else if (e.key === 'p' || e.key === 'Escape') {
+          togglePause();
+          if (document.pointerLockElement) {
+            document.exitPointerLock();
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, movePaddle, startGame, togglePause]);
+  }, [gameState, movePaddle, startGame, togglePause, shoot]);
 
   return (
     <div className="min-h-screen bg-[#08090a] text-[#e0e0e0] font-sans flex items-center justify-center p-4">
       <div className="grid grid-cols-[240px_1fr_240px] grid-rows-[80px_1fr_140px] gap-4 w-full max-w-[1200px] h-[800px]">
         
         {/* Header Bento */}
-        <div className="bento-card col-span-3 flex items-center justify-between px-8">
+        <div className="bento-card col-span-3 flex items-center justify-between px-8 relative">
           <div className="text-2xl font-extrabold tracking-widest uppercase bg-gradient-to-r from-[#00d2ff] to-[#ff007a] bg-clip-text text-transparent italic">
             DX-BALL // NEON
           </div>
@@ -91,15 +126,61 @@ export default function App() {
         </div>
 
         {/* Main Game Center */}
-        <div className="row-start-2 col-start-2 bg-black border-2 border-[#00d2ff]/30 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,210,255,0.1)] relative">
+        <div 
+          ref={containerRef}
+          onContextMenu={(e) => { e.preventDefault(); if (!gameState?.isPaused) togglePause(); }}
+          className="row-start-2 col-start-2 bg-black border-2 border-[#00d2ff]/30 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,210,255,0.1)] relative"
+        >
           <GameCanvas 
             gameState={gameState} 
             onMouseMove={handlePointerMove}
             onClick={() => {
                 soundService.init();
-                startGame();
+                if (gameState?.isGameOver) startGame();
+                else if (gameState?.isPaused) startGame();
+                else togglePause();
             }}
           />
+
+          {/* Pause Button (Touch/Mobile helper) */}
+          {!gameState?.isPaused && !gameState?.isGameOver && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); togglePause(); }}
+              className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 transition-all z-40"
+            >
+              <Pause size={18} />
+            </button>
+          )}
+
+          {/* Pause Menu Overlay */}
+          {gameState?.isMenuOpen && !gameState?.isGameOver && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-[#14161a] border-2 border-[#00d2ff]/30 p-10 rounded-3xl flex flex-col gap-6 w-[320px] shadow-[0_0_50px_rgba(0,210,255,0.2)]">
+                <div className="text-2xl font-black text-center tracking-tighter uppercase italic text-[#00d2ff]">Paused</div>
+                
+                <button 
+                  onClick={startGame}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-[#00d2ff] text-black font-bold rounded-xl hover:scale-105 transition-transform"
+                >
+                  <Play size={20} fill="currentColor" /> RESUME
+                </button>
+
+                <button 
+                  onClick={resetLevel}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-white/5 text-white font-bold rounded-xl border border-white/10 hover:bg-white/10 transition-all"
+                >
+                  <RotateCcw size={20} /> RESET LEVEL
+                </button>
+
+                <button 
+                  onClick={quitGame}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-red-500/10 text-red-500 font-bold rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-all"
+                >
+                  <LogOut size={20} /> QUIT GAME
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Sidebar Bento */}
@@ -133,8 +214,8 @@ export default function App() {
             <span className="text-[10px] uppercase text-[#888] tracking-widest font-mono">Move Paddle</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="key-cap">SPACE</div>
-            <span className="text-[10px] uppercase text-[#888] tracking-widest font-mono">Launch Ball</span>
+            <div className="key-cap">ESC</div>
+            <span className="text-[10px] uppercase text-[#888] tracking-widest font-mono">Pause Menu</span>
           </div>
           <div className="flex items-center gap-3 text-cyan-400">
             <Zap size={16} />
