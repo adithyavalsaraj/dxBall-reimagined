@@ -24,6 +24,7 @@ export function useGameLoop() {
         case 'lose_life': soundService.playLoseLife(); break;
         case 'game_over': soundService.playGameOver(); break;
         case 'level_start': soundService.playLevelStart(); break;
+        case 'catch_powerup': soundService.playPaddleHit(); break; // Reuse paddle hit for now
       }
     };
 
@@ -70,6 +71,7 @@ export function useGameLoop() {
           engineRef.current.resetBall();
       }
       engineRef.current.state.isPaused = false;
+      engineRef.current.state.isMenuOpen = false;
     }
   };
 
@@ -77,6 +79,20 @@ export function useGameLoop() {
     gameState,
     movePaddle,
     startGame,
+    resetLevel: () => {
+      if (engineRef.current) {
+        const bricks = parseLevel(engineRef.current.state.level);
+        engineRef.current.resetLevel(bricks);
+      }
+    },
+    quitGame: () => {
+      if (engineRef.current) {
+        const bricks = parseLevel(0);
+        engineRef.current.resetGame(bricks);
+        prevLevelRef.current = 0;
+      }
+    },
+    shoot: () => engineRef.current?.shoot(),
     togglePause: () => engineRef.current?.togglePause(),
   };
 }
