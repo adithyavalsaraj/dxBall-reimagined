@@ -1,24 +1,19 @@
 
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client using environment variables
 const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
   ? Redis.fromEnv() 
   : new Redis({
-      url: process.env.KV_REST_API_URL || process.env.REDIS_URL || '',
+      url: process.env.KV_REST_API_URL || '',
       token: process.env.KV_REST_API_TOKEN || '',
     });
-
-console.log('Redis initialized with:', {
-  hasUpstashUrl: !!process.env.UPSTASH_REDIS_REST_URL,
-  hasKvUrl: !!process.env.KV_REST_API_URL,
-  hasRedisUrl: !!process.env.REDIS_URL,
-  hasToken: !!(process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)
-});
 
 const LEADERBOARD_KEY = 'dx-ball-leaderboard';
 
 export default async function handler(req: any, res: any) {
+  // Log available environment keys (safely)
+  console.log('Available Env Keys:', Object.keys(process.env).filter(k => k.includes('REDIS') || k.includes('KV')));
+
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -29,13 +24,16 @@ export default async function handler(req: any, res: any) {
   );
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   try {
+    // Basic connection health check
+    if (!process.env.KV_REST_API_URL && !process.env.UPSTASH_REDIS_REST_URL) {
+      throw new Error('Redis configuration missing. Please ensure KV_REST_API_URL and KV_REST_API_TOKEN are set in Vercel.');
+    }
+
     if (req.method === 'GET') {
-      // Get scores from Redis
       const scores = await redis.get(LEADERBOARD_KEY);
       return res.status(200).json(scores || []);
     }
@@ -48,8 +46,6 @@ export default async function handler(req: any, res: any) {
       }
 
       const upperName = name.toUpperCase().trim();
-      
-      // Get current scores
       let scores: any[] = (await redis.get(LEADERBOARD_KEY)) || [];
       
       const newEntry = {
@@ -58,7 +54,6 @@ export default async function handler(req: any, res: any) {
         date: new Date().toISOString(),
       };
 
-      // Uniqueness check (keep highest score per name)
       const existingIndex = scores.findIndex((s) => s.name === upperName);
       if (existingIndex !== -1) {
         if (score > scores[existingIndex].score) {
@@ -68,18 +63,16 @@ export default async function handler(req: any, res: any) {
         scores.push(newEntry);
       }
 
-      // Sort and limit to top 10
-      scores = scores
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 10);
-
-      // Save back to Redis
+      scores = scores.sort((a, b) => b.score - a.score).slice(0, 10);
       await redis.set(LEADERBOARD_KEY, scores);
       
       return res.status(200).json(scores);
     }
   } catch (error: any) {
-    console.error('Leaderboard Error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Leaderboard API Error:', error);
+    return res.status(500).json({ 
+      error: error.message,
+      keysFound: Object.keys(process.env).filter(k => k.includes('REDIS') || k.includes('KV'))
+    });
   }
 }

@@ -28,7 +28,9 @@ export function useLeaderboard() {
         const data = await response.json();
         setScores(data.length > 0 ? data : DEFAULT_SCORES);
       } else {
-        throw new Error('Failed to fetch global scores');
+        const text = await response.text();
+        console.error(`Leaderboard API Error (${response.status}):`, text);
+        throw new Error(`Failed to fetch global scores: ${response.status}`);
       }
     } catch (err) {
       console.error('Leaderboard Fetch Error:', err);
