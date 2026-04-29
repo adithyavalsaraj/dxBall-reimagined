@@ -2,14 +2,19 @@
 import { Redis } from '@upstash/redis';
 
 // Initialize Redis client using environment variables
-// This will look for UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN automatically,
-// or we can fallback to other common Vercel names.
 const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
   ? Redis.fromEnv() 
   : new Redis({
       url: process.env.KV_REST_API_URL || process.env.REDIS_URL || '',
       token: process.env.KV_REST_API_TOKEN || '',
     });
+
+console.log('Redis initialized with:', {
+  hasUpstashUrl: !!process.env.UPSTASH_REDIS_REST_URL,
+  hasKvUrl: !!process.env.KV_REST_API_URL,
+  hasRedisUrl: !!process.env.REDIS_URL,
+  hasToken: !!(process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)
+});
 
 const LEADERBOARD_KEY = 'dx-ball-leaderboard';
 
