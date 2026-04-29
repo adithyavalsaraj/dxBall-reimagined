@@ -1,13 +1,16 @@
-import { LogOut, Pause, Play, RotateCcw, Zap } from "lucide-react";
+import { LogOut, Pause, Play, RotateCcw, Trophy, Zap } from "lucide-react";
 import {
+  FormEvent,
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import GameCanvas from "./components/game/GameCanvas";
 import { useGameLoop } from "./hooks/useGameLoop";
+import { useLeaderboard } from "./hooks/useLeaderboard";
 import { soundService } from "./lib/game/audio";
 import { GAME_WIDTH } from "./lib/game/constants";
 
@@ -22,7 +25,30 @@ export default function App() {
     quitGame,
   } = useGameLoop();
 
+  const { scores, addScore, isHighScore, currentCallsign } = useLeaderboard();
+  const [playerName, setPlayerName] = useState("");
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (currentCallsign) setPlayerName(currentCallsign);
+  }, [currentCallsign]);
+
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reset submission state when game starts
+  useEffect(() => {
+    if (!gameState?.isGameOver) {
+      setHasSubmitted(false);
+    }
+  }, [gameState?.isGameOver]);
+
+  const handleScoreSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (gameState && playerName.trim()) {
+      addScore(playerName, gameState.score);
+      setHasSubmitted(true);
+    }
+  };
 
   const handlePointerMove = useCallback(
     (e: ReactMouseEvent | ReactTouchEvent) => {
@@ -67,6 +93,14 @@ export default function App() {
           movePaddle(gameState.paddle.x + step);
         } else if (e.key === " ") {
           if (gameState.isPaused || gameState.isGameOver) {
+            if (
+              gameState.isGameOver &&
+              isHighScore(gameState.score) &&
+              !hasSubmitted
+            ) {
+              // Focus name input if it's a high score and not submitted
+              return;
+            }
             startGame();
             // Try to request pointer lock when starting via keyboard too
             const canvas = document.querySelector("canvas");
@@ -85,7 +119,17 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [gameState, movePaddle, startGame, togglePause, shoot]);
+  }, [
+    gameState,
+    movePaddle,
+    startGame,
+    togglePause,
+    shoot,
+    isHighScore,
+    hasSubmitted,
+  ]);
+
+  const maxScore = scores.length > 0 ? scores[0].score : 0;
 
   return (
     <div className="min-h-screen bg-[#08090a] text-[#e0e0e0] font-sans flex flex-col items-center p-2 sm:p-4 md:p-6 overflow-x-hidden">
@@ -109,7 +153,7 @@ export default function App() {
                 High Score
               </div>
               <div className="text-xl sm:text-2xl font-bold font-mono text-white">
-                045,000
+                {maxScore.toString().padStart(6, "0")}
               </div>
             </div>
             <div className="text-center border-l border-white/5 pl-6 sm:pl-12">
@@ -144,7 +188,9 @@ export default function App() {
             <div className="text-[10px] uppercase text-[#888] tracking-widest mb-1">
               Multipliers
             </div>
-            <div className="text-4xl font-black text-[#39ff14]">x2.5</div>
+            <div className="text-4xl font-black text-[#39ff14]">
+              x{(1 + (gameState?.level || 0) * 0.5).toFixed(1)}
+            </div>
           </div>
           <div className="mt-auto">
             <div className="text-[10px] uppercase text-[#888] tracking-widest mb-1">
@@ -172,8 +218,10 @@ export default function App() {
             onMouseMove={handlePointerMove}
             onClick={() => {
               soundService.init();
-              if (gameState?.isGameOver) startGame();
-              else if (gameState?.isPaused) startGame();
+              if (gameState?.isGameOver) {
+                if (isHighScore(gameState.score) && !hasSubmitted) return;
+                startGame();
+              } else if (gameState?.isPaused) startGame();
               else togglePause();
             }}
           />
@@ -190,6 +238,52 @@ export default function App() {
               <Pause size={16} className="sm:size-[18px]" />
             </button>
           )}
+
+          {/* High Score Submission Overlay */}
+          {gameState?.isGameOver &&
+            isHighScore(gameState.score) &&
+            !hasSubmitted && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-55 p-4">
+                <div className="bg-[#14161a] border-2 border-[#39ff14]/50 p-6 sm:p-10 rounded-2xl sm:rounded-3xl flex flex-col gap-4 sm:gap-6 w-full max-w-[360px] shadow-[0_0_50px_rgba(57,255,20,0.2)]">
+                  <div className="flex flex-col items-center gap-2">
+                    <Trophy className="text-[#39ff14] w-12 h-12 animate-bounce" />
+                    <div className="text-xl sm:text-2xl font-black text-center tracking-tighter uppercase italic text-[#39ff14]">
+                      New High Score!
+                    </div>
+                    <div className="text-4xl font-mono font-bold text-white">
+                      {gameState.score.toString().padStart(6, "0")}
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={handleScoreSubmit}
+                    className="flex flex-col gap-4"
+                  >
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] uppercase text-[#888] tracking-widest ml-1">
+                        Enter your callsign
+                      </label>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={playerName}
+                        onChange={(e) =>
+                          setPlayerName(e.target.value.substring(0, 12))
+                        }
+                        placeholder="PLAYER_01"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:outline-none focus:border-[#39ff14]/50 transition-colors uppercase"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-[#39ff14] text-black font-bold rounded-xl hover:scale-105 transition-transform"
+                    >
+                      SUBMIT TO LEADERBOARD
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
 
           {/* Pause Menu Overlay */}
           {gameState?.isMenuOpen && !gameState?.isGameOver && (
@@ -225,25 +319,26 @@ export default function App() {
         </div>
 
         {/* Right Sidebar Bento - Hidden on mobile, shown on lg */}
-        <div className="hidden lg:flex bento-card p-6 flex-col">
-          <div className="text-sm font-bold text-[#ff007a] mb-4 uppercase tracking-wider">
-            Global Rankings
+        <div className="hidden lg:flex bento-card p-6 flex-col overflow-hidden">
+          <div className="text-sm font-bold text-[#ff007a] mb-4 uppercase tracking-wider flex items-center gap-2">
+            <Trophy size={14} /> Rankings
           </div>
-          <div className="space-y-3">
-            {[
-              { name: "1. CYBER_PUNK", score: "45,200" },
-              { name: "2. RETRO_KING", score: "38,150" },
-              { name: "3. VOID_WALKER", score: "33,900" },
-              { name: "4. PIXEL_MAGE", score: "29,050" },
-              { name: "5. NEON_RIDER", score: "24,800" },
-            ].map((entry, i) => (
-              <div key={i} className="flex justify-between text-xs font-mono">
-                <span className="text-[#888]">{entry.name}</span>
-                <span className="font-bold">{entry.score}</span>
+          <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar">
+            {scores.map((entry, i) => (
+              <div
+                key={i}
+                className={`flex justify-between text-xs font-mono p-2 rounded-lg ${entry.score === gameState?.score && hasSubmitted ? "bg-[#ff007a]/20 border border-[#ff007a]/30" : "bg-white/5"}`}
+              >
+                <span className="text-[#888] truncate mr-2">
+                  {i + 1}. {entry.name}
+                </span>
+                <span className="font-bold text-white shrink-0">
+                  {entry.score.toLocaleString()}
+                </span>
               </div>
             ))}
           </div>
-          <div className="mt-auto text-[10px] text-[#888] text-center italic">
+          <div className="mt-auto text-[10px] text-[#888] text-center italic pt-4">
             Season 12 ends in 4 days
           </div>
         </div>

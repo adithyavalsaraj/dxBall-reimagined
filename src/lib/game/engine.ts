@@ -11,6 +11,8 @@ import {
   EXTENDED_PADDLE_WIDTH,
   SHRUNK_BALL_SPEED_FACTOR,
   INITIAL_BALL_SPEED,
+  MAX_BALL_SPEED,
+  SPEED_INCREMENT_PER_LEVEL,
   BULLET_SPEED,
   BULLET_COOLDOWN
 } from './constants';
@@ -59,8 +61,9 @@ export class BallGameEngine {
   private lastShotTime: number = 0;
 
   constructor(initialBricks: BrickData[]) {
+    const speed = INITIAL_BALL_SPEED;
     this.state = {
-      balls: [{ x: GAME_WIDTH / 2, y: GAME_HEIGHT - 60, dx: INITIAL_BALL_SPEED * 0.8, dy: -INITIAL_BALL_SPEED }],
+      balls: [{ x: GAME_WIDTH / 2, y: GAME_HEIGHT - 60, dx: speed * 0.8, dy: -speed }],
       bullets: [],
       paddle: { x: (GAME_WIDTH - PADDLE_WIDTH) / 2, y: GAME_HEIGHT - 30, width: PADDLE_WIDTH },
       bricks: initialBricks,
@@ -76,11 +79,12 @@ export class BallGameEngine {
   }
 
   resetBall() {
+    const speed = Math.min(MAX_BALL_SPEED, INITIAL_BALL_SPEED + (this.state.level * SPEED_INCREMENT_PER_LEVEL));
     this.state.balls = [{
       x: this.state.paddle.x + this.state.paddle.width / 2,
       y: this.state.paddle.y - 20,
-      dx: (Math.random() - 0.5) * INITIAL_BALL_SPEED,
-      dy: -INITIAL_BALL_SPEED,
+      dx: (Math.random() - 0.5) * speed,
+      dy: -speed,
       isFireBall: false,
     }];
     this.state.fallingPowerUps = [];

@@ -7,7 +7,8 @@ export const PADDLE_HEIGHT = 20;
 export const BALL_RADIUS = 8;
 
 export const INITIAL_BALL_SPEED = 5;
-export const MAX_BALL_SPEED = 12;
+export const MAX_BALL_SPEED = 15;
+export const SPEED_INCREMENT_PER_LEVEL = 0.4;
 
 export const BRICK_WIDTH = 64;
 export const BRICK_HEIGHT = 32;

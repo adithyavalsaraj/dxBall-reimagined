@@ -8,14 +8,15 @@ import {
   BALL_RADIUS,
   BRICK_HEIGHT,
   BRICK_WIDTH,
+  BULLET_HEIGHT,
+  BULLET_WIDTH,
+  BrickType,
   COLORS,
   GAME_HEIGHT,
   GAME_WIDTH,
   PADDLE_HEIGHT,
-  PowerUpType,
   POWERUP_RADIUS,
-  BULLET_WIDTH,
-  BULLET_HEIGHT,
+  PowerUpType,
 } from "../../lib/game/constants";
 import { GameState } from "../../lib/game/engine";
 
@@ -74,7 +75,10 @@ export default function GameCanvas({
 
     document.addEventListener("pointerlockchange", handlePointerLockChange);
     return () =>
-      document.removeEventListener("pointerlockchange", handlePointerLockChange);
+      document.removeEventListener(
+        "pointerlockchange",
+        handlePointerLockChange,
+      );
   }, [gameState, onClick]);
 
   const handleCanvasClick = () => {
@@ -100,21 +104,63 @@ export default function GameCanvas({
     // Draw Bricks
     gameState.bricks.forEach((brick) => {
       ctx.save();
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = COLORS.BRICKS[brick.type];
-      ctx.fillStyle = COLORS.BRICKS[brick.type];
+
+      if (brick.type === BrickType.INDESTRUCTIBLE) {
+        // Metallic effect for indestructible bricks
+        const grad = ctx.createLinearGradient(
+          brick.x,
+          brick.y,
+          brick.x + BRICK_WIDTH,
+          brick.y + BRICK_HEIGHT,
+        );
+        grad.addColorStop(0, "#444");
+        grad.addColorStop(0.2, "#999");
+        grad.addColorStop(0.5, "#eee");
+        grad.addColorStop(0.8, "#999");
+        grad.addColorStop(1, "#444");
+
+        ctx.fillStyle = grad;
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = "rgba(255,255,255,0.3)";
+      } else {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = COLORS.BRICKS[brick.type];
+        ctx.fillStyle = COLORS.BRICKS[brick.type];
+      }
 
       // Draw brick body
       ctx.fillRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT);
 
       // Draw brick border
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle =
+        brick.type === BrickType.INDESTRUCTIBLE ? "#333" : "#ffffff";
       ctx.lineWidth = 1;
       ctx.strokeRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT);
 
       // Add "shine" to bricks
       ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
       ctx.fillRect(brick.x, brick.y, BRICK_WIDTH, 4);
+
+      // Draw cracks for tough bricks
+      if (brick.type === BrickType.TOUGH && brick.hits < brick.maxHits) {
+        const damageLevel = 1 - brick.hits / brick.maxHits;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        // Simple procedural cracks based on brick position (so they stay consistent)
+        const seed = (brick.x * 13 + brick.y * 7) % 100;
+        const numCracks = Math.floor(damageLevel * 5);
+
+        for (let i = 0; i < numCracks; i++) {
+          const startX = brick.x + ((seed * (i + 1) * 7) % BRICK_WIDTH);
+          const startY = brick.y + ((seed * (i + 1) * 3) % BRICK_HEIGHT);
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(startX + (seed % 20) - 10, startY + (seed % 20) - 10);
+          ctx.lineTo(startX + (seed % 30) - 15, startY + (seed % 30) - 15);
+        }
+        ctx.stroke();
+      }
 
       ctx.restore();
     });
