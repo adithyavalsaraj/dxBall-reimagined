@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'POST') {
-      const { name, score } = req.body;
+      const { name, score, userId } = req.body;
       
       if (!name || typeof score !== 'number') {
         return res.status(400).json({ error: 'Invalid name or score' });
@@ -46,9 +46,14 @@ export default async function handler(req: any, res: any) {
         name: upperName,
         score,
         date: new Date().toISOString(),
+        userId: userId || null,
       };
 
-      const existingIndex = scores.findIndex((s) => s.name === upperName);
+      // Find by combination of userId and name if available, otherwise fallback to name
+      const existingIndex = scores.findIndex((s) => 
+        (s.userId && userId) ? (s.userId === userId && s.name === upperName) : s.name === upperName
+      );
+
       if (existingIndex !== -1) {
         if (score > scores[existingIndex].score) {
           scores[existingIndex] = newEntry;

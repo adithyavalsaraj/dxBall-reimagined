@@ -5,6 +5,7 @@ export interface LeaderboardEntry {
   name: string;
   score: number;
   date: string;
+  userId?: string;
 }
 
 const DEFAULT_SCORES: LeaderboardEntry[] = [
@@ -18,6 +19,7 @@ const DEFAULT_SCORES: LeaderboardEntry[] = [
 export function useLeaderboard() {
   const [scores, setScores] = useState<LeaderboardEntry[]>([]);
   const [currentCallsign, setCurrentCallsign] = useState<string>("");
+  const [userId, setUserId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchScores = async () => {
@@ -49,6 +51,13 @@ export function useLeaderboard() {
     if (savedName) {
       setCurrentCallsign(savedName);
     }
+
+    let id = localStorage.getItem('dx-ball-userid');
+    if (!id) {
+      id = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('dx-ball-userid', id);
+    }
+    setUserId(id);
   }, []);
 
   const addScore = async (name: string, score: number) => {
@@ -62,7 +71,7 @@ export function useLeaderboard() {
       const response = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: upperName, score }),
+        body: JSON.stringify({ name: upperName, score, userId }),
       });
 
       if (response.ok) {
@@ -75,9 +84,13 @@ export function useLeaderboard() {
     } catch (err) {
       console.error('Leaderboard Submit Error:', err);
       // Local fallback
-      const existingIndex = scores.findIndex(s => s.name === upperName);
+      // Find by combination of userId and name if available
+      const existingIndex = scores.findIndex(s => 
+        (s.userId && userId) ? (s.userId === userId && s.name === upperName) : s.name === upperName
+      );
+      
       let updated = [...scores];
-      const newEntry = { name: upperName, score, date: new Date().toISOString() };
+      const newEntry = { name: upperName, score, date: new Date().toISOString(), userId };
 
       if (existingIndex !== -1) {
         if (score > scores[existingIndex].score) updated[existingIndex] = newEntry;

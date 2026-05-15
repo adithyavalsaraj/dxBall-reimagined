@@ -28,6 +28,7 @@ export default function App() {
   const { scores, addScore, isHighScore, currentCallsign } = useLeaderboard();
   const [playerName, setPlayerName] = useState("");
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [hasEnteredName, setHasEnteredName] = useState(false);
 
   useEffect(() => {
     if (currentCallsign) setPlayerName(currentCallsign);
@@ -237,6 +238,59 @@ export default function App() {
             >
               <Pause size={16} className="sm:size-[18px]" />
             </button>
+          )}
+
+          {/* Welcome / Name Entry Overlay */}
+          {!hasEnteredName && (
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-60 p-4">
+              <div className="bg-[#14161a] border-2 border-[#00d2ff]/50 p-6 sm:p-10 rounded-2xl sm:rounded-3xl flex flex-col gap-4 sm:gap-6 w-full max-w-[360px] shadow-[0_0_50px_rgba(0,210,255,0.2)]">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-xl sm:text-2xl font-black text-center tracking-tighter uppercase italic text-[#00d2ff]">
+                    Welcome to DX-BALL
+                  </div>
+                  <div className="text-sm text-[#888] text-center">
+                    Enter your callsign to start playing
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (playerName.trim()) {
+                      const upperName = playerName.toUpperCase().trim();
+                      localStorage.setItem('dx-ball-callsign', upperName);
+                      setHasEnteredName(true);
+                      startGame();
+                      const canvas = document.querySelector("canvas");
+                      canvas?.requestPointerLock();
+                    }
+                  }}
+                  className="flex flex-col gap-4"
+                >
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] uppercase text-[#888] tracking-widest ml-1">
+                      Callsign
+                    </label>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={playerName}
+                      onChange={(e) =>
+                        setPlayerName(e.target.value.substring(0, 12))
+                      }
+                      placeholder="PLAYER_01"
+                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:outline-none focus:border-[#00d2ff]/50 transition-colors uppercase"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-4 bg-[#00d2ff] text-black font-bold rounded-xl hover:scale-105 transition-transform"
+                  >
+                    START GAME
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
 
           {/* High Score Submission Overlay */}
